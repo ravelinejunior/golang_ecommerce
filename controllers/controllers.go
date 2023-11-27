@@ -1,19 +1,29 @@
 package controllers
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+)
 
-func Signup(c *gin.Context) {
+func HashPassword(password string) string {
+	return ""
+}
+
+func VerifyPassword(userPassword string, typedPass string) (bool, string) {
+	return true, ""
+}
+
+func Signup(c *gin.Context) gin.HandlerFunc {
 
 }
-func Login(c *gin.Context) {
+func Login(c *gin.Context) gin.HandlerFunc {
 
 }
-func AddProduct(c *gin.Context) {
+func AddProduct(c *gin.Context) gin.HandlerFunc {
 
 }
-func SearchProduct(c *gin.Context) {
+func SearchProduct(c *gin.Context) gin.HandlerFunc {
 
 }
-func SearchProductByQuery(c *gin.Context) {
+func SearchProductByQuery(c *gin.Context) gin.HandlerFunc {
 
 }
