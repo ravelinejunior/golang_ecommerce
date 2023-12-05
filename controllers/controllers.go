@@ -11,14 +11,27 @@ import (
 	"github.com/ravelinejunior/golang_ecommerce/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func HashPassword(password string) string {
-	return ""
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	if err != nil {
+		log.Panic(err)
+	}
+	return string(bytes)
 }
 
 func VerifyPassword(userPassword string, typedPass string) (bool, string) {
-	return true, ""
+	err := bcrypt.CompareHashAndPassword([]byte(typedPass), []byte(userPassword))
+	valid := true
+	message := ""
+
+	if err != nil {
+		message = "Login or Password is incorrect"
+		valid = false
+	}
+	return valid, message
 }
 
 func Signup() gin.HandlerFunc {
@@ -127,8 +140,39 @@ func AddProduct(c *gin.Context) gin.HandlerFunc {
 
 }
 
-func SearchProduct(c *gin.Context) gin.HandlerFunc {
+func SearchProduct() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		var productList []models.Product
+		var contx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 
+		defer cancel()
+
+		cursor, err := ProductCollection.Find(contx, bson.D{{}})
+		if err != nil {
+			ctx.IndentedJSON(http.StatusInternalServerError, "Something went wrong, try again!")
+			return
+		}
+
+		err = cursor.All(contx, &productList)
+
+		if err != nil {
+			log.Println(err)
+			ctx.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+
+		defer cursor.Close(ctx)
+
+		if err := cursor.Err(); err != nil {
+			log.Println(err)
+			ctx.IndentedJSON(http.StatusBadRequest, "invalid search")
+			return
+		}
+
+		defer cancel()
+
+		ctx.IndentedJSON(http.StatusOK, productList)
+	}
 }
 
 func SearchProductByQuery(c *gin.Context) gin.HandlerFunc {
