@@ -136,7 +136,7 @@ func Login() gin.HandlerFunc {
 	}
 }
 
-func AddProduct(c *gin.Context) gin.HandlerFunc {
+func AddProduct() gin.HandlerFunc {
 
 }
 
@@ -175,6 +175,46 @@ func SearchProduct() gin.HandlerFunc {
 	}
 }
 
-func SearchProductByQuery(c *gin.Context) gin.HandlerFunc {
+func SearchProductByQuery() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		var searchProducts []models.Product
+		queryParam := ctx.Query("name")
 
+		// check if params is empty
+		if queryParam == "" {
+			log.Println("query is empty")
+			ctx.Header("Content-Type", "application/json")
+			ctx.JSON(http.StatusNotFound, gin.H{"Error": "Invalid search index"})
+			ctx.Abort()
+			return
+		}
+
+		var contx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		searchQueryDb, err := ProductCollection.Find(contx, bson.M{"product_name": bson.M{"regex": queryParam}})
+
+		if err != nil {
+			ctx.IndentedJSON(http.StatusInternalServerError, "Something went wrong while trying fetch data")
+			return
+		}
+
+		err = searchQueryDb.All(contx, &searchProducts)
+		if err != nil {
+			log.Println(err)
+			ctx.IndentedJSON(http.StatusInternalServerError, "invalid search")
+			return
+		}
+
+		defer searchQueryDb.Close(contx)
+
+		if err := searchQueryDb.Err(); err != nil {
+			log.Println(err)
+			ctx.IndentedJSON(http.StatusInternalServerError, "invalid request")
+			return
+		}
+
+		defer cancel()
+		ctx.IndentedJSON(http.StatusOK, searchProducts)
+	}
 }
