@@ -10,6 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/ravelinejunior/golang_ecommerce/database"
+	"github.com/ravelinejunior/golang_ecommerce/models"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -109,8 +111,52 @@ func (app *Application) RemoveItem() gin.HandlerFunc {
 	}
 }
 
-func (app *Application) GetItemFromCart() gin.HandlerFunc {
+func GetItemFromCart() gin.HandlerFunc {
+	return func(gCtx *gin.Context) {
+		userID := gCtx.Query("id")
 
+		if userID == "" {
+			gCtx.Header("Content-Type", "application/json")
+			gCtx.JSON(http.StatusNotFound, gin.H{"erro": "invalid id"})
+			gCtx.Abort()
+			return
+		}
+
+		usertId, _ := primitive.ObjectIDFromHex(userID)
+
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		var filledCart models.User
+		err := UserCollection.FindOne(ctx, bson.D{primitive.E{Key: "_id", Value: usertId}}).Decode(&filledCart)
+
+		if err != nil {
+			log.Println(err)
+			gCtx.JSON(http.StatusInternalServerError, "Not found")
+			return
+		}
+
+		filterMatch := bson.D{{Key: "$match", Value: bson.D{primitive.E{Key: "_id", Value: usertId}}}}
+		unwind := bson.D{{Key: "$unwind", Value: bson.D{primitive.E{Key: "path", Value: "$usercart"}}}}
+		grouping := bson.D{{Key: "$group", Value: bson.D{primitive.E{Key: "_id", Value: "$_id"}, {Key: "total", Value: bson.D{primitive.E{Key: "$sum", Value: "$usercart.price"}}}}}}
+		pointCursor, err := UserCollection.Aggregate(ctx, mongo.Pipeline{filterMatch, unwind, grouping})
+
+		if err != nil {
+			log.Println(err)
+		}
+		var listing []bson.M
+		if err = pointCursor.All(ctx, &listing); err != nil {
+			log.Println(err)
+			gCtx.AbortWithStatus(http.StatusInternalServerError)
+		}
+		for _, json := range listing {
+			gCtx.IndentedJSON(http.StatusOK, json["total"])
+			gCtx.IndentedJSON(http.StatusOK, filledCart.UserCart)
+		}
+
+		ctx.Done()
+
+	}
 }
 
 func (app *Application) BuyFromCart() gin.HandlerFunc {
