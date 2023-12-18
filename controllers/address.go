@@ -13,6 +13,17 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+// AddAddress godoc
+// @Summary Add a new address to the user
+// @Description Add a new address to the user
+// @ID AddAddress
+// @Accept  json
+// @Produce  json
+// @Param id path string true "User ID"
+// @Param body body models.Address true "Address Object"
+// @Success 200 {object} models.Address
+// @Failure 400,404 {object} models.Error
+// @Router /add-address?id={id} [post]
 func AddAddress() gin.HandlerFunc {
 	return func(gCtx *gin.Context) {
 		userID := gCtx.Query("id")
@@ -76,6 +87,17 @@ func AddAddress() gin.HandlerFunc {
 	}
 }
 
+// EditHomeAddress godoc
+// @Summary Edit the home address of the user
+// @Description Edit the home address of the user
+// @ID EditHomeAddress
+// @Accept  json
+// @Produce  json
+// @Param id path string true "User ID"
+// @Param body body models.Address true "Address Object"
+// @Success 200 {object} models.Address
+// @Failure 400,404 {object} models.Error
+// @Router /edit-home-address?id={id} [post]
 func EditHomeAddress() gin.HandlerFunc {
 	return func(gCtx *gin.Context) {
 		userId := gCtx.Query("id")
@@ -114,6 +136,17 @@ func EditHomeAddress() gin.HandlerFunc {
 	}
 }
 
+// EditWorkAddress godoc
+// @Summary Edit the work address of the user
+// @Description Edit the work address of the user
+// @ID EditWorkAddress
+// @Accept  json
+// @Produce  json
+// @Param id path string true "User ID"
+// @Param body body models.Address true "Address Object"
+// @Success 200 {object} models.Address
+// @Failure 400,404 {object} models.Error
+// @Router /edit-work-address?id={id} [post]
 func EditWorkAddress() gin.HandlerFunc {
 	return func(gCtx *gin.Context) {
 		userId := gCtx.Query("id")
@@ -152,6 +185,16 @@ func EditWorkAddress() gin.HandlerFunc {
 	}
 }
 
+// DeleteAddress godoc
+// @Summary Delete the address of the user
+// @Description Delete the address of the user
+// @ID DeleteAddress
+// @Accept  json
+// @Produce  json
+// @Param id path string true "User ID"
+// @Success 200 {object} string "Successfully Deleted"
+// @Failure 400,404 {object} models.Error
+// @Router /delete-address?id={id} [delete]
 func DeleteAddress() gin.HandlerFunc {
 	return func(gCtx *gin.Context) {
 		userId := gCtx.Query("id")
@@ -173,7 +216,7 @@ func DeleteAddress() gin.HandlerFunc {
 		defer cancel()
 
 		filter := bson.D{primitive.E{Key: "_id", Value: usertId}}
-		update := bson.D{{Key: "$set", Value: bson.D{primitive.E{Key: "address", Value: addresses}}}}
+		update := bson.D{{Key: "", Value: bson.D{primitive.E{Key: "address", Value: addresses}}}}
 		_, err = UserCollection.UpdateOne(ctx, filter, update)
 		if err != nil {
 			gCtx.IndentedJSON(http.StatusNotFound, "Wrong command")
