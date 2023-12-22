@@ -8,12 +8,34 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
+	"github.com/ravelinejunior/golang_ecommerce/database"
 	"github.com/ravelinejunior/golang_ecommerce/models"
+	generate "github.com/ravelinejunior/golang_ecommerce/tokens"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 )
 
+var UserCollection *mongo.Collection = database.UserData(database.Client, "Users")
+var ProductCollection *mongo.Collection = database.ProductData(database.Client, "Products")
+var Validate = validator.New()
+
+// HashPassword godoc
+// @Summary Generate a hashed password
+// @Description Generate a hashed password using the bcrypt algorithm
+// @param password string true "password to be hashed"
+// @return string
+// @return error
+// @example
+//
+//	password := "password"
+//	hashedPassword, err := HashPassword(password)
+//	if err != nil {
+//		log.Panic(err)
+//	}
+//	fmt.Println(hashedPassword)
 func HashPassword(password string) string {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
@@ -22,6 +44,18 @@ func HashPassword(password string) string {
 	return string(bytes)
 }
 
+// VerifyPassword godoc
+// @Summary Verify user password
+// @Description Verify user password
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param user_password path string true "User password"
+// @Param typed_pass path string true "User typed password"
+// @Success 200 {boolean} true
+// @Failure 400 {object} models.Error
+// @Failure 500 {object} models.Error
+// @Router /auth/verify_password/{user_password}/{typed_pass} [get]
 func VerifyPassword(userPassword string, typedPass string) (bool, string) {
 	err := bcrypt.CompareHashAndPassword([]byte(typedPass), []byte(userPassword))
 	valid := true
@@ -34,6 +68,17 @@ func VerifyPassword(userPassword string, typedPass string) (bool, string) {
 	return valid, message
 }
 
+// Signup godoc
+// @Summary Signup user
+// @Description Signup user
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param user body models.User true "User object"
+// @Success 201 {object} models.User
+// @Failure 400 {object} models.Error
+// @Failure 500 {object} models.Error
+// @Router /auth/signup [post]
 func Signup() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
@@ -41,7 +86,7 @@ func Signup() gin.HandlerFunc {
 
 		var user models.User
 		if err := c.BindJSON(&user); err != nil {
-			c.JSON{http.StatusBadRequest, gin.H{"error": err.Error()}}
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
@@ -83,7 +128,7 @@ func Signup() gin.HandlerFunc {
 		user.Updated_At, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		user.ID = primitive.NewObjectID()
 		user.User_ID = user.ID.Hex()
-		token, refreshToken, _ := generate.TokenGenerator(*user.Email, *&user.First_Name, *user.Last_Name, &user.ID)
+		token, refreshToken, _ := generate.TokenGenerator(*user.Email, *user.First_Name, *user.Last_Name, user.User_ID)
 		user.Token = &token
 		user.Refresh_Token = &refreshToken
 		user.UserCart = make([]models.ProductUser, 0)
@@ -100,12 +145,24 @@ func Signup() gin.HandlerFunc {
 	}
 }
 
+// Login godoc
+// @Summary Login user
+// @Description Login user
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param user body models.User true "User object"
+// @Success 200 {object} models.User
+// @Failure 400 {object} models.Error
+// @Failure 500 {object} models.Error
+// @Router /auth/login [post]
 func Login() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
 		var user models.User
+		var foundUser models.User
 		if err := c.BindJSON(&user); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err})
 			return
@@ -122,12 +179,12 @@ func Login() gin.HandlerFunc {
 		defer cancel()
 
 		if !PasswordIsValid {
-			c.JSON{http.StatusInternalServerError, gin.H{"error": msg}}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			fmt.Println(msg)
 			return
 		}
 
-		token, refreshToken, _ := generate.TokenGenerator(*foundUser.Email, *&foundUser.First_Name, *foundUser.Last_Name, foundUser.ID)
+		token, refreshToken, _ := generate.TokenGenerator(*foundUser.Email, *foundUser.First_Name, *foundUser.Last_Name, foundUser.User_ID)
 		defer cancel()
 
 		generate.UpdateAllTokens(token, refreshToken, foundUser.User_ID)
@@ -136,10 +193,48 @@ func Login() gin.HandlerFunc {
 	}
 }
 
-func AddProduct() gin.HandlerFunc {
-
+// ProductViewerAdmin godoc
+// @Summary Add a new product to the database
+// @Description Adds a new product to the database
+// @Tags Products
+// @Accept json
+// @Produce json
+// @Param product body models.Product true "Product object"
+// @Success 200 {object} models.Product
+// @Failure 400 {object} models.Error
+// @Failure 500 {object} models.Error
+// @Router /product/admin [post]
+func ProductViewerAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		var products models.Product
+		defer cancel()
+		if err := c.BindJSON(&products); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		products.Product_ID = primitive.NewObjectID()
+		_, anyerr := ProductCollection.InsertOne(ctx, products)
+		if anyerr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Not Created"})
+			return
+		}
+		defer cancel()
+		c.JSON(http.StatusOK, "Successfully added our Product Admin!!")
+	}
 }
 
+// SearchProduct godoc
+// @Summary Search for products
+// @Description Search for products based on the search query
+// @Tags Products
+// @Accept json
+// @Produce json
+// @Param name query string true "Search query"
+// @Success 200 {array} models.Product
+// @Failure 404 {object} models.Error
+// @Failure 500 {object} models.Error
+// @Router /product/search [get]
 func SearchProduct() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		var productList []models.Product
@@ -175,6 +270,17 @@ func SearchProduct() gin.HandlerFunc {
 	}
 }
 
+// SearchProductByQuery godoc
+// @Summary Search for products
+// @Description Search for products based on the search query
+// @Tags Products
+// @Accept json
+// @Produce json
+// @Param name query string true "Search query"
+// @Success 200 {array} models.Product
+// @Failure 404 {object} models.Error
+// @Failure 500 {object} models.Error
+// @Router /product/search [get]
 func SearchProductByQuery() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		var searchProducts []models.Product
