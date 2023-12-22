@@ -190,6 +190,98 @@ func BuyItemFromCart(ctx context.Context, userCollection *mongo.Collection, user
 	return nil
 }
 
-func InstantBuyer() {
+// InstantBuyer adds a product to the cart of a user
+func InstantBuyer(ctx context.Context, prodCollection, userCollection *mongo.Collection, productID primitive.ObjectID, userID string) error {
+	// Convert the user ID to a primitive.ObjectID.
+	id, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		log.Println(err)
+		return ErrUserIdsNotValid
+	}
 
+	// Initialize variables to hold the retrieved cart items and the order.
+	var getCartItems models.User
+	var orderCart models.Order
+
+	// Set the order ID, ordered at time, and initialize the order cart.
+	orderCart.Order_ID = primitive.NewObjectID()
+	orderCart.Ordered_At = time.Now()
+	orderCart.Order_Cart = make([]models.ProductUser, 0)
+	orderCart.Payment_Method.COD = true
+
+	// Unwind the user cart and group by the user ID to find the cart total.
+	unwind := bson.D{{Key: "$unwind", Value: bson.D{primitive.E{Key: "path", Value: "$usercart"}}}}
+	grouping := bson.D{{Key: "$group", Value: bson.D{primitive.E{Key: "_id", Value: "$_id"}, {Key: "total", Value: bson.D{primitive.E{Key: "$sum", Value: "$usercart.price"}}}}}}
+
+	// Run the aggregation pipeline to retrieve the cart items and total.
+	currentResults, err := userCollection.Aggregate(ctx, mongo.Pipeline{unwind, grouping})
+	ctx.Done()
+	if err != nil {
+		panic(err)
+	}
+
+	// Initialize a slice to hold the retrieved cart items.
+	var getUserCart []bson.M
+	if err = currentResults.All(ctx, &getUserCart); err != nil {
+		panic(err)
+	}
+
+	// Initialize a variable to hold the total cart price.
+	var totalPrice int32
+
+	// Iterate through the retrieved cart items to find the total price.
+	for _, userItem := range getUserCart {
+		price := userItem["total"]
+		totalPrice = price.(int32)
+	}
+
+	// Set the order price to the total cart price.
+	orderCart.Price = int(totalPrice)
+
+	// Create a filter to search for the given user ID.
+	filter := bson.D{primitive.E{Key: "_id", Value: id}}
+
+	// Create an update to add the order to the user's orders.
+	update := bson.D{{Key: "$push", Value: bson.D{primitive.E{Key: "orders", Value: orderCart}}}}
+
+	// Update the user document with the new order.
+	_, err = userCollection.UpdateMany(ctx, filter, update)
+	if err != nil {
+		log.Println(err)
+	}
+
+	// Find the user document with the given user ID.
+	userCollection.FindOne(ctx, bson.D{primitive.E{Key: "_id", Value: id}}).Decode(&getCartItems)
+	if err != nil {
+		log.Println(err)
+	}
+
+	// Create a filter to search for the given user ID again.
+	secondFilter := bson.D{primitive.E{Key: "_id", Value: id}}
+
+	// Create an update to add the cart items to the order list.
+	secondUpdate := bson.M{"$push": bson.M{"orders.$[].order_list": bson.M{"$each": getCartItems.UserCart}}}
+
+	// Update the user document with the new order list.
+	_, err = userCollection.UpdateOne(ctx, secondFilter, secondUpdate)
+	if err != nil {
+		log.Println(err)
+	}
+
+	// Initialize an empty slice for the user cart.
+	userCartEmpty := make([]models.ProductUser, 0)
+
+	// Create a filter to search for the given user ID a third time.
+	thirdFilter := bson.D{primitive.E{Key: "_id", Value: id}}
+
+	// Create an update to set the user cart to the empty slice.
+	thirdUpdate := bson.D{{Key: "$set", Value: bson.D{primitive.E{Key: "usercart", Value: userCartEmpty}}}}
+
+	// Update the user document with the empty cart.
+	_, err = userCollection.UpdateOne(ctx, thirdFilter, thirdUpdate)
+	if err != nil {
+		return ErrCantBuyCartItem
+	}
+
+	return nil
 }

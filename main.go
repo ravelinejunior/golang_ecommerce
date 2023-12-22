@@ -16,24 +16,36 @@ import (
 	_ "github.com/ravelinejunior/golang_ecommerce/routes"
 )
 
+// main is the entry point of the application
 func main() {
+	// get the port from the environment variable PORT
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8000"
 	}
 
+	// create a new application instance
 	app := controllers.NewApplication(database.ProductData(database.Client, "Products"), database.UserData(database.Client, "Users"))
 
+	// create a new gin router
 	router := gin.New()
+	// use the gin logger middleware
 	router.Use(gin.Logger())
 
+	// register user routes
 	routes.UserRoutes(router)
+	// use the authentication middleware
 	router.Use(middleware.Authentication())
 
+	// register add to cart route
 	router.GET("/addtocart", app.AddToCart())
+	// register remove item route
 	router.GET("/removeitem", app.RemoveItem())
+	// register cart checkout route
 	router.GET("/cartcheckout", app.BuyFromCart())
+	// register instant buy route
 	router.GET("/instantbuy", app.InstantBuy())
 
+	// start the server and log any errors
 	log.Fatal(router.Run(":" + port))
 }
