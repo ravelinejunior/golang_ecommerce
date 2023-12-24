@@ -45,6 +45,11 @@ func main() {
 	router.GET("/cartcheckout", app.BuyFromCart())
 	// register instant buy route
 	router.GET("/instantbuy", app.InstantBuy())
+	router.GET("/listcart", controllers.GetItemFromCart())
+	router.POST("/addaddress", controllers.AddAddress())
+	router.PUT("/edithomeaddress", controllers.EditHomeAddress())
+	router.PUT("/editworkaddress", controllers.EditWorkAddress())
+	router.GET("/deleteaddresses", controllers.DeleteAddress())
 
 	// start the server and log any errors
 	log.Fatal(router.Run(":" + port))

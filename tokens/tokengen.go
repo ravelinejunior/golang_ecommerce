@@ -14,9 +14,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-var UserData *mongo.Collection = database.UserData(database.Client, "users")
-var SECRET_KEY = os.Getenv("SECRET_KEY")
-
 type SignedDetails struct {
 	Email      string
 	First_Name string
@@ -24,6 +21,9 @@ type SignedDetails struct {
 	Uid        string
 	jwt.StandardClaims
 }
+
+var UserData *mongo.Collection = database.UserData(database.Client, "Users")
+var SECRET_KEY = os.Getenv("SECRET_KEY")
 
 // TokenGenerator generates a JWT and a refresh JWT
 func TokenGenerator(email string, firstName string, lastName string, uid string) (signedToken string, signedRefreshToken string, err error) {

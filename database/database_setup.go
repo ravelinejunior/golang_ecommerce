@@ -13,7 +13,7 @@ import (
 // DBSet creates a new MongoDB client and connects to the database
 func DBSet() *mongo.Client {
 	// create a new MongoDB client
-	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://localhost27017"))
+	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://development:testpassword@localhost:27017"))
 	if err != nil {
 		log.Fatal(err)
 	}

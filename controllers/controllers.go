@@ -188,7 +188,7 @@ func Login() gin.HandlerFunc {
 		defer cancel()
 
 		generate.UpdateAllTokens(token, refreshToken, foundUser.User_ID)
-		c.JSON(http.StatusFound, foundUser)
+		c.IndentedJSON(http.StatusOK, foundUser)
 
 	}
 }
