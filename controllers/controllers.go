@@ -298,17 +298,19 @@ func SearchProductByQuery() gin.HandlerFunc {
 		var contx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
-		searchQueryDb, err := ProductCollection.Find(contx, bson.M{"product_name": bson.M{"regex": queryParam}})
+		var queryFilter = bson.M{"product_name": bson.M{"$regex": queryParam, "$options": "i"}}
+
+		searchQueryDb, err := ProductCollection.Find(contx, queryFilter)
 
 		if err != nil {
-			ctx.IndentedJSON(http.StatusInternalServerError, "Something went wrong while trying fetch data")
+			ctx.IndentedJSON(http.StatusNotFound, "Something went wrong while trying fetch data")
 			return
 		}
 
 		err = searchQueryDb.All(contx, &searchProducts)
 		if err != nil {
 			log.Println(err)
-			ctx.IndentedJSON(http.StatusInternalServerError, "invalid search")
+			ctx.IndentedJSON(http.StatusBadRequest, "invalid search")
 			return
 		}
 
@@ -316,7 +318,7 @@ func SearchProductByQuery() gin.HandlerFunc {
 
 		if err := searchQueryDb.Err(); err != nil {
 			log.Println(err)
-			ctx.IndentedJSON(http.StatusInternalServerError, "invalid request")
+			ctx.IndentedJSON(http.StatusBadRequest, "invalid request")
 			return
 		}
 
